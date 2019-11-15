@@ -1,0 +1,32 @@
+/* Stylesheet intended for setting artistic properties
+ * of checkers objects. More functional properties are
+ * overidden by the Javascript. */ 
+.board {
+    box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.5);
+}
+.boardTileEven {
+    background-color: white;
+}
+.boardTileOdd {
+    background-color: green;
+}
+.pieceRed {
+    background-color: red;
+}
+.pieceRedKing {
+    background-color: red;
+    border: solid black;
+    border-style: inset;
+}
+.pieceBlack {
+    background-color: black;
+}
+.pieceBlackKing {
+    background-color: black;
+    border: solid black;
+    border-style: inset;
+}
+.pieceShadow {
+    background-color: rgba(0, 0, 0, 0.5);
+    box-shadow: 0px 3px 3px rgba(0, 0, 0, 0.5);
+}
