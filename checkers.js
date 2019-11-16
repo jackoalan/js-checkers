@@ -438,9 +438,9 @@ function Checkers(tileDim) {
       var v = 0;
       var w = 0;
       for (var i = 0; i < 3; ++i) {
-        const edge = checkers.edges[tri * 3 + i];
-        const vertex = checkers.vertices[tri * 3 + i];
-        const bary = edge.edgeFunction(x, y) * checkers.invAreas[tri] * vertex.P.w;
+        const edge = this.edges[tri * 3 + i];
+        const vertex = this.vertices[tri * 3 + i];
+        const bary = edge.edgeFunction(x, y) * this.invAreas[tri] * vertex.P.w;
         if (bary < 0) {
           /* If hypotenuse is crossed, process other triangle. */
           if (i == 0)
