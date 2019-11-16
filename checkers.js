@@ -191,6 +191,17 @@ function Piece(parent, red, tile) {
     this._positionPiece();
   };
   
+  this.onpointercancel = function(event) {
+    this.element.removeEventListener("pointermove", this);
+    this.element.releasePointerCapture(event.pointerId);
+    
+    this.element.style.transform = "translateZ(0)";
+    this.dropping = true;
+    this.setTransitionEase();
+    
+    this._positionPiece();
+  };
+  
   this._onpointermove = function(event) {
     const coord = checkers.screenCoordinateToBoardCoordinate(event.clientX, event.clientY);
     const adjust = this.tilePxDim / 2;
@@ -215,6 +226,12 @@ function Piece(parent, red, tile) {
     this.resetTransitionEase();
   };
   
+  function oncontextmenu(event) {
+     event.preventDefault();
+     event.stopPropagation();
+     return false;
+  };
+  
   /*
    * Pointer events are used instead of mouse events since they are more
    * drag-n-drop friendly (i.e. they can be captured to work outside
@@ -223,8 +240,10 @@ function Piece(parent, red, tile) {
   RegisterEventDict(this, this.element, {
     "pointerdown": [this.onpointerdown, true],
     "pointerup": [this.onpointerup, true],
+    "pointercancel": [this.onpointercancel, true],
     "pointermove": [this.onpointermove, false],
     "transitionend": [this.ontransitionend, true],
+    "contextmenu": [oncontextmenu, true]
   });
 }
 
@@ -402,7 +421,7 @@ function Checkers(tileDim) {
   
   this.screenCoordinateToBoardCoordinate = function(x, y) {
     const checkers = this;
-    function processTriangle(tri) {
+    const processTriangle = (tri) => {
       /*
        * Perform perspective-correct barycentric interpolation
        * like a 3D triangle rasterizer would do.
