@@ -425,7 +425,6 @@ function Checkers(tileDim) {
   };
   
   this.screenCoordinateToBoardCoordinate = function(x, y) {
-    const checkers = this;
     const processTriangle = (tri) => {
       /*
        * Perform perspective-correct barycentric interpolation
