@@ -80,6 +80,7 @@ function Piece(parent, red, tile) {
   this.element.style.boxSizing = "border-box";
   this.element.style.transition = "transform 0.5s";
   this.element.style.zIndex = "1";
+  this.element.style.userSelect = "none";
   parent.boardElement.appendChild(this.element);
   this.shadow = document.createElement("div");
   this.shadow.classList.add("pieceShadow");
@@ -109,6 +110,9 @@ function Piece(parent, red, tile) {
     this.element.style.height = piecePxDim + "px";
     this.element.style.margin = piecePxMargin + "px";
     this.element.style.borderRadius = piecePxDim + "px";
+    this.element.style.textAlign = "center";
+    this.element.style.padding = piecePxMargin / 2 + "px 0";
+    this.element.style.fontSize = piecePxMargin * 2 + "px";
     this.shadow.style.width = piecePxDim + "px";
     this.shadow.style.height = piecePxDim + "px";
     this.shadow.style.margin = piecePxMargin + "px";
@@ -120,6 +124,7 @@ function Piece(parent, red, tile) {
     this.king = true;
     this.element.classList.replace(this.red ? "pieceRed" : "pieceBlack",
                                    this.red ? "pieceRedKing" : "pieceBlackKing");
+    this.element.innerHTML = "👑";
   };
   
   this.setTile = function(tile) {

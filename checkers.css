@@ -15,7 +15,7 @@
 }
 .pieceRedKing {
     background-color: red;
-    border: solid black;
+    border: solid 3px grey;
     border-style: inset;
 }
 .pieceBlack {
@@ -23,7 +23,7 @@
 }
 .pieceBlackKing {
     background-color: black;
-    border: solid black;
+    border: solid 3px grey;
     border-style: inset;
 }
 .pieceShadow {
