@@ -8,6 +8,10 @@
 if (typeof BOARD_DIM === "undefined")
   BOARD_DIM = 8;
 
+/* Enable turn enforcement */
+if (typeof TURN_BASED === "undefined")
+  TURN_BASED = true;
+
 /* Set to prevent piece being dragged outside board */
 if (typeof CONSTRAIN_PIECE === "undefined")
   CONSTRAIN_PIECE = false;
@@ -20,87 +24,109 @@ if (typeof CONSTRAIN_PIECE === "undefined")
  */
 function RegisterEventDict(obj, element, eventDict) {
   obj.handleEvent = function(event) { eventDict[event.type][0].call(this, event); };
-  for (ev in eventDict)
+  for (const ev in eventDict)
     if (eventDict[ev][1])
       element.addEventListener(ev, obj);
 }
 
 /* Delegate for tile element */
-function Tile(parent, x, y) {
-  this.parent = parent;
-  this.playable = (x + y) & 1;
-  this.x = x;
-  this.y = y;
-  this.piece = null;
-  this.element = document.createElement("div");
-  this.element.classList.add(this.playable ? "boardTileOdd" : "boardTileEven");
-  this.element.style.position = "absolute";
-  parent.boardElement.appendChild(this.element);
-  
-  this.positionTile = function(tilePxDim) {
+class Tile {
+  constructor(parent, x, y) {
+    this.parent = parent;
+    this.x = x;
+    this.y = y;
+    this.piece = null;
+    this.element = document.createElement("div");
+    this.element.classList.add(((x + y) & 1) ? "boardTileOdd" : "boardTileEven");
+    this.element.style.position = "absolute";
+    parent.boardElement.appendChild(this.element);
+    RegisterEventDict(this, this.element, {
+      "droppiece": [this.ondroppiece, true]
+    });
+  }
+
+  positionTile(tilePxDim) {
     this.element.style.width = tilePxDim + "px";
     this.element.style.height = tilePxDim + "px";
     this.element.style.left = tilePxDim * this.x + "px";
     this.element.style.top = tilePxDim * this.y + "px";
-  };
-  
-  this.remove = function() {
+  }
+
+  remove() {
     this.element.remove();
-  };
-  
+  }
+
   /*
    * The tile's droppiece handler associates the piece with the coordinates
    * of the tile so the checkerboard can make a high level decision with
    * the necessary parameters.
    */
-  this.ondroppiece = function(event) {
+  ondroppiece(event) {
     if (this.parent.dropPiece(event.detail, this))
       event.preventDefault();
   }
-  
-  RegisterEventDict(this, this.element, {
-    "droppiece": [this.ondroppiece, true]
-  });
 }
 
 /* Delegate for piece element */
-function Piece(parent, red, tile) {
-  this.parent = parent;
-  this.red = red;
-  this.king = false;
-  this.tile = tile;
-  tile.piece = this;
-  this.tilePxDim = 0;
-  this.piecePxDim = 0;
-  this.dropping = false;
-  this.beingCaptured = false;
-  this.element = document.createElement("div");
-  this.element.classList.add(red ? "pieceRed" : "pieceBlack");
-  this.element.style.position = "absolute";
-  this.element.style.boxSizing = "border-box";
-  this.element.style.transition = "transform 0.5s";
-  this.element.style.zIndex = "1";
-  this.element.style.userSelect = "none";
-  parent.boardElement.appendChild(this.element);
-  this.shadow = document.createElement("div");
-  this.shadow.classList.add("pieceShadow");
-  this.shadow.style.position = "absolute";
-  this.shadow.style.transition = "";
-  this.shadow.style.zIndex = "0";
-  parent.boardElement.appendChild(this.shadow);
-  
-  this._setPieceCoordinates = function(x, y) {
+class Piece {
+  constructor(parent, red, tile) {
+    this.parent = parent;
+    this.red = red;
+    this.king = false;
+    this.tile = tile;
+    tile.piece = this;
+    this.tilePxDim = 0;
+    this.piecePxDim = 0;
+    this.dropping = false;
+    this.beingCaptured = false;
+    this.element = document.createElement("div");
+    this.element.classList.add(red ? "pieceRed" : "pieceBlack");
+    this.element.style.position = "absolute";
+    this.element.style.boxSizing = "border-box";
+    this.element.style.transition = "transform 0.5s";
+    this.element.style.zIndex = "1";
+    this.element.style.userSelect = "none";
+    parent.boardElement.appendChild(this.element);
+    this.shadow = document.createElement("div");
+    this.shadow.classList.add("pieceShadow");
+    this.shadow.style.position = "absolute";
+    this.shadow.style.transition = "";
+    this.shadow.style.zIndex = "0";
+    parent.boardElement.appendChild(this.shadow);
+
+    function oncontextmenu(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    };
+
+    /*
+     * Pointer events are used instead of mouse events since they are more
+     * drag-n-drop friendly (i.e. they can be captured to work outside
+     * the window or if the pointer unexpectedly exits the element).
+     */
+    RegisterEventDict(this, this.element, {
+      "pointerdown": [this.onpointerdown, true],
+      "pointerup": [this.onpointerup, true],
+      "pointercancel": [this.onpointercancel, true],
+      "pointermove": [this.onpointermove, false],
+      "transitionend": [this.ontransitionend, true],
+      "contextmenu": [oncontextmenu, true]
+    });
+  }
+
+  _setPieceCoordinates(x, y) {
     this.element.style.left = x + "px";
     this.element.style.top = y + "px";
     this.shadow.style.left = x + "px";
     this.shadow.style.top = y + "px";
-  };
+  }
 
-  this._positionPiece = function() {
+  _positionPiece() {
     this._setPieceCoordinates(this.tilePxDim * this.tile.x, this.tilePxDim * this.tile.y);
-  };
-  
-  this.positionPiece = function(tilePxDim) {
+  }
+
+  positionPiece(tilePxDim) {
     this.tilePxDim = tilePxDim;
     const marginFactor = 0.7;
     const piecePxDim = tilePxDim * marginFactor;
@@ -118,16 +144,16 @@ function Piece(parent, red, tile) {
     this.shadow.style.margin = piecePxMargin + "px";
     this.shadow.style.borderRadius = piecePxDim + "px";
     this._positionPiece();
-  };
-  
-  this.makeKing = function() {
+  }
+
+  makeKing() {
     this.king = true;
     this.element.classList.replace(this.red ? "pieceRed" : "pieceBlack",
                                    this.red ? "pieceRedKing" : "pieceBlackKing");
     this.element.innerHTML = "👑";
-  };
-  
-  this.setTile = function(tile) {
+  }
+
+  setTile(tile) {
     if (tile.piece)
       return false;
     this.tile.piece = null;
@@ -137,9 +163,9 @@ function Piece(parent, red, tile) {
       this.makeKing();
     this._positionPiece();
     return true;
-  };
-  
-  this.capture = function() {
+  }
+
+  capture() {
     this.tile.piece = null;
     this.parent.pieces.splice(this.parent.pieces.indexOf(this), 1);
     this.beingCaptured = true;
@@ -148,43 +174,46 @@ function Piece(parent, red, tile) {
     this.element.style.opacity = "0";
     this.shadow.style.transition = "opacity 1s";
     this.shadow.style.opacity = "0";
-  };
-  
-  this.remove = function() {
+  }
+
+  remove() {
     this.element.remove();
     this.shadow.remove();
-  };
-  
-  this.setTransitionEase = function() {
+  }
+
+  setTransitionEase() {
     this.element.style.transition = "transform 0.5s, left 0.5s, top 0.5s";
     this.shadow.style.transition = "left 0.5s, top 0.5s";
-  };
-  
-  this.resetTransitionEase = function() {
+  }
+
+  resetTransitionEase() {
     this.element.style.transition = "transform 0.5s";
     this.shadow.style.transition = "";
-  };
-  
-  this.onpointerdown = function(event) {
+  }
+
+  onpointerdown(event) {
+    if (TURN_BASED && this.parent.redTurn != this.red)
+      return;
+
     this.element.addEventListener("pointermove", this);
     this.element.setPointerCapture(event.pointerId);
-    
+
     this.element.style.transform = "translateZ(20px)";
     this.element.style.zIndex = "3";
     this.shadow.style.zIndex = "2";
     this.setTransitionEase();
-    
+
     this._onpointermove(event);
-  };
-  
-  this.onpointerup = function(event) {
+  }
+
+  onpointerup(event) {
     this.element.removeEventListener("pointermove", this);
     this.element.releasePointerCapture(event.pointerId);
-    
+
     this.element.style.transform = "translateZ(0)";
     this.dropping = true;
     this.setTransitionEase();
-    
+
     /*
      * Use a custom DOM event to handle piece dropping. Cancelling the event with
      * event.preventDefault() will bypass the position restoration.
@@ -192,33 +221,33 @@ function Piece(parent, red, tile) {
     for (const element of document.elementsFromPoint(event.clientX, event.clientY))
       if (!element.dispatchEvent(new CustomEvent("droppiece", {detail: this, cancelable: true})))
         return;
-    
+
     this._positionPiece();
-  };
-  
-  this.onpointercancel = function(event) {
+  }
+
+  onpointercancel(event) {
     this.element.removeEventListener("pointermove", this);
     this.element.releasePointerCapture(event.pointerId);
-    
+
     this.element.style.transform = "translateZ(0)";
     this.dropping = true;
     this.setTransitionEase();
-    
+
     this._positionPiece();
-  };
-  
-  this._onpointermove = function(event) {
+  }
+
+  _onpointermove(event) {
     const coord = checkers.screenCoordinateToBoardCoordinate(event.clientX, event.clientY);
     const adjust = this.tilePxDim / 2;
     this._setPieceCoordinates(coord.x - adjust, coord.y - adjust);
-  };
-  
-  this.onpointermove = function(event) {
+  }
+
+  onpointermove(event) {
     this.resetTransitionEase();
     this._onpointermove(event);
   }
-  
-  this.ontransitionend = function(event) {
+
+  ontransitionend(event) {
     if (this.dropping) {
       this.element.style.zIndex = "1";
       this.shadow.style.zIndex = "0";
@@ -229,81 +258,73 @@ function Piece(parent, red, tile) {
       return;
     }
     this.resetTransitionEase();
-  };
-  
-  function oncontextmenu(event) {
-     event.preventDefault();
-     event.stopPropagation();
-     return false;
-  };
-  
-  /*
-   * Pointer events are used instead of mouse events since they are more
-   * drag-n-drop friendly (i.e. they can be captured to work outside
-   * the window or if the pointer unexpectedly exits the element).
-   */
-  RegisterEventDict(this, this.element, {
-    "pointerdown": [this.onpointerdown, true],
-    "pointerup": [this.onpointerup, true],
-    "pointercancel": [this.onpointercancel, true],
-    "pointermove": [this.onpointermove, false],
-    "transitionend": [this.ontransitionend, true],
-    "contextmenu": [oncontextmenu, true]
-  });
+  }
 }
 
 /* Main checkerboard controller */
-function Checkers(tileDim) {
-  if (tileDim < 2)
-    console.warn("Board dimension must be >= 2");
-  if (tileDim & 1)
-    console.warn("Board dimension must be even");
-  this.tileDim = Math.max(2, tileDim) & ~1;
-  this.boardPxDim = 0;
-  this.tilePxDim = 0;
-  this.boardX = 0;
-  this.boardY = 0;
-  this.tiles = [];
-  this.pieces = [];
-  this.vertices = null;
-  this.edges = null;
-  this.invAreas = null;
-  this.boardElement = null;
-  this.lastTriangle = 0;
-  
-  this.getTile = function(x, y) {
+class Checkers {
+  constructor(tileDim) {
+    if (tileDim < 2)
+      console.warn("Board dimension must be >= 2");
+    if (tileDim & 1)
+      console.warn("Board dimension must be even");
+    this.tileDim = Math.max(2, tileDim) & ~1;
+    this.boardPxDim = 0;
+    this.tilePxDim = 0;
+    this.boardX = 0;
+    this.boardY = 0;
+    this.tiles = [];
+    this.pieces = [];
+    this.vertices = null;
+    this.edges = null;
+    this.invAreas = null;
+    this.boardElement = null;
+    this.lastTriangle = 0;
+    this.boxShadowStr = null;
+    this.redTurn = TURN_BASED;
+  }
+
+  getTile(x, y) {
     return this.tiles[y * this.tileDim + x];
-  };
-  
-  this.removeObjects = function() {
+  }
+
+  removeObjects() {
     while (this.tiles.length)
       this.tiles.pop().remove();
     while (this.pieces.length)
       this.pieces.pop().remove();
     this.boardElement.remove();
-  };
-  
-  this.createObjects = function() {
+  }
+
+  createObjects() {
     this.boardElement = document.createElement("div");
     this.boardElement.classList.add("board");
     this.boardElement.style.position = "absolute";
+    this.boardElement.style.transition = "box-shadow 0.5s";
     document.body.appendChild(this.boardElement);
-    
-    for (var y = 0; y < this.tileDim; ++y)
-      for (var x = 0; x < this.tileDim; ++x)
+    this.boxShadowStr = window.getComputedStyle(this.boardElement).boxShadow;
+    this.setTurn(this.redTurn);
+
+    for (let y = 0; y < this.tileDim; ++y)
+      for (let x = 0; x < this.tileDim; ++x)
         this.tiles.push(new Tile(this, x, y));
-    
+
     const pieceRows = Math.min(3, this.tileDim / 2);
-    for (var red = 0; red < 2; ++red) {
-      var yStart = red ? this.tileDim - pieceRows : 0;
-      var yEnd = yStart + pieceRows;
-      for (var y = yStart; y < yEnd; ++y)
-        for (var x = 0; x < this.tileDim; x += 2)
+    for (let red = 0; red < 2; ++red) {
+      const yStart = red ? this.tileDim - pieceRows : 0;
+      const yEnd = yStart + pieceRows;
+      for (let y = yStart; y < yEnd; ++y)
+        for (let x = 0; x < this.tileDim; x += 2)
           this.pieces.push(new Piece(this, red, this.getTile(x + !(y & 1), y)));
     }
-  };
-  
-  this.positionObjects = function() {
+  }
+
+  setBoardShadowColor(r, g, b) {
+    const re = /rgba\(([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*/;
+    this.boardElement.style.boxShadow = this.boxShadowStr.replace(re, "rgba(" + r + "," + g + "," + b + ",");
+  }
+
+  positionObjects() {
     /* Scalable layout logic */
     const windowW = document.documentElement.clientWidth;
     const windowH = document.documentElement.clientHeight;
@@ -332,25 +353,25 @@ function Checkers(tileDim) {
     this.boardElement.style.top = boardY + "px";
     this.boardElement.style.transformStyle = "preserve-3d";
     this.boardElement.style.transform = "perspective(1000px) rotateX(30deg)";
-    
+
     /* Propagate board scale to pieces */
     const tilePxDim = boardPxDim / this.tileDim;
     this.tilePxDim = tilePxDim;
-    for (tile of this.tiles)
+    for (const tile of this.tiles)
       tile.positionTile(tilePxDim);
-    for (piece of this.pieces)
+    for (const piece of this.pieces)
       piece.positionPiece(tilePxDim);
-    
+
     /*
      * Everything after this point precomputes information for efficient
      * execution of screenCoordinateToBoardCoordinate.
      */
-    
+
     /* Perspective matrix from CSS */
     const matrix = new DOMMatrix(window.getComputedStyle(this.boardElement).transform);
-    
+
     /* Calculates screen-space coordinates from board-space unit coordinates. */
-    function projectBoardCoordinate(x, y) {
+    const projectBoardCoordinate = (x, y) => {
       /* Make coordinates center-origin for correct perspective transformation. */
       const midBoard = boardPxDim / 2;
       const point = new DOMPoint(x * boardPxDim - midBoard,
@@ -365,29 +386,33 @@ function Checkers(tileDim) {
                           point.y / point.w + midBoard + boardY,
                           0, 1 / point.w);
     }
-    
+
     /*
      * Associates the screen-space projected coordinate and W inverse
      * with board-space unit coordinates.
      */
-    function Vertex(P, U, V) {
-      this.P = P;
-      this.U = U * boardPxDim;
-      this.V = V * boardPxDim;
+    class Vertex {
+      constructor(P, U, V) {
+        this.P = P;
+        this.U = U * boardPxDim;
+        this.V = V * boardPxDim;
+      }
     }
-    
+
     /*
      * References fixed edge points and provides determinant function for conveniently
      * calculating barycentric coordinates of an arbitrary screen-space point.
      */
-    function Edge(P1, P2) {
-      this.P1 = P1;
-      this.P2 = P2;
-      this.edgeFunction = function(scrX, scrY) {
-        return (P2.x - P1.x) * (scrY - P1.y) - (P2.y - P1.y) * (scrX - P1.x);
+    class Edge {
+      constructor(P1, P2) {
+        this.P1 = P1;
+        this.P2 = P2;
+      }
+      edgeFunction(scrX, scrY) {
+        return (this.P2.x - this.P1.x) * (scrY - this.P1.y) - (this.P2.y - this.P1.y) * (scrX - this.P1.x);
       };
     }
-    
+
     /*
      * Board quad is tessellated into two back-to-back triangles
      * for barycentric interpolation.
@@ -418,13 +443,13 @@ function Checkers(tileDim) {
       new Edge(C, D),
       new Edge(D, B)
     ];
-    
+
     /* Multiply to easily normalize barycentric coordinates of either triangle. */
     this.invAreas = [1 / this.edges[0].edgeFunction(A.x, A.y),
                      1 / this.edges[3].edgeFunction(D.x, D.y)];
-  };
-  
-  this.screenCoordinateToBoardCoordinate = function(x, y) {
+  }
+
+  screenCoordinateToBoardCoordinate(x, y) {
     const processTriangle = (tri) => {
       /*
        * Perform perspective-correct barycentric interpolation
@@ -437,7 +462,7 @@ function Checkers(tileDim) {
       var u = 0;
       var v = 0;
       var w = 0;
-      for (var i = 0; i < 3; ++i) {
+      for (let i = 0; i < 3; ++i) {
         const edge = this.edges[tri * 3 + i];
         const vertex = this.vertices[tri * 3 + i];
         const bary = edge.edgeFunction(x, y) * this.invAreas[tri] * vertex.P.w;
@@ -454,48 +479,49 @@ function Checkers(tileDim) {
         w += bary;
       }
       w = 1 / w;
-      
+
       /* Board-space coordinates are analogous to texture coordinates. */
       return new DOMPoint(u * w, v * w);
     }
-    
+
     /* 
      * Process both triangles of the board quad, starting with previous
      * triangle result as a predictive branching measure.
      */
-    for (var i = 0, t = this.lastTriangle; i < 2; ++i, t = t ^ 1) {
+    for (let i = 0, t = this.lastTriangle; i < 2; ++i, t = t ^ 1) {
       const point = processTriangle(t);
       if (point) {
         this.lastTriangle = t;
         return point;
       }
     }
-    
+
     /* Should not be reached */
     console.error("Barycentric failure");
     return null;
-  };
-  
-  this.dropPiece = function(piece, tile) {
+  }
+
+  setTurn(red) {
+    this.redTurn = red;
+    this.setBoardShadowColor(red ? 200 : 0, 0, 0);
+  }
+
+  dropPiece(piece, tile) {
     /*
      * Rules of checkers are mostly implemented here.
      * Returning false will restore the piece to its previous position.
      */
-    
-    /* Only playable tiles may be moved to */
-    if (!tile.playable)
-      return false;
-    
+
     /* Movement rules for various pieces */
     const dy = tile.y - piece.tile.y;
     const dx = tile.x - piece.tile.x;
     const ady = Math.abs(dy);
     const adx = Math.abs(dx);
-    
+
     /* Ensure diagonal movement */
     if (adx != ady)
       return false;
-    
+
     /* Direction rules */
     if (piece.king) {
       /* May move +/-Y */
@@ -510,7 +536,7 @@ function Checkers(tileDim) {
       if (dy <= 0)
         return false;
     }
-    
+
     /* Distance rules */
     var capturePiece = null;
     if (ady == 2) {
@@ -522,17 +548,21 @@ function Checkers(tileDim) {
     } else if (ady != 1) {
       return false;
     }
-    
+
     /* Attempt to move piece to tile. Returns false if tile occupied. */
     if (!piece.setTile(tile))
       return false;
-    
+
     /* Capture piece if there is one */
     if (capturePiece)
       capturePiece.capture();
-    
+
+    /* Next turn */
+    if (TURN_BASED)
+      this.setTurn(this.redTurn ^ 1);
+
     return true;
-  };
+  }
 }
 
 /* Instantiate checkerboard and create/position elements. */
